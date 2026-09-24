@@ -3,7 +3,7 @@
 
 PNPM = pnpm
 
-.PHONY: all help install check check-ci lint format typecheck test build clean dev-radar dev-web
+.PHONY: all help install check check-ci lint format typecheck test build clean dev-api dev-radar dev-web
 
 all: install check build
 
@@ -20,6 +20,7 @@ help:
 	@echo   make test        - Run test suites across all packages
 	@echo   make build       - Build all packages and applications
 	@echo   make clean       - Remove all build and temporary artifacts
+	@echo   make dev-api     - Start Hono API server in dev mode
 	@echo   make dev-radar   - Start Spot Radar scanner daemon in dev mode
 	@echo   make dev-web     - Start Web dashboard in dev mode
 	@echo ================================================================
@@ -50,6 +51,9 @@ build:
 
 clean:
 	$(PNPM) run clean
+
+dev-api:
+	$(PNPM) --filter @gsolut/api dev
 
 dev-radar:
 	$(PNPM) --filter @gsolut/spot-radar dev
