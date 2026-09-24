@@ -55,6 +55,40 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  apps/spot-radar:
+    dependencies:
+      '@gsolut/alerter-telegram':
+        specifier: workspace:*
+        version: link:../../packages/alerter-telegram
+      '@gsolut/connector-binance':
+        specifier: workspace:*
+        version: link:../../packages/connector-binance
+      '@gsolut/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@gsolut/radar-spot':
+        specifier: workspace:*
+        version: link:../../packages/radar-spot
+      '@gsolut/risk-filter':
+        specifier: workspace:*
+        version: link:../../packages/risk-filter
+      '@gsolut/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@gsolut/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.20.4
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   apps/web:
     dependencies:
       '@gsolut/types':

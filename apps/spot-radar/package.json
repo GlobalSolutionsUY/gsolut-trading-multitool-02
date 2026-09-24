@@ -1,0 +1,28 @@
+{
+  "name": "@gsolut/spot-radar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous spot opportunity scanner daemon for gsolut-trading-multitool",
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/**/*.test.ts"
+  },
+  "dependencies": {
+    "@gsolut/alerter-telegram": "workspace:*",
+    "@gsolut/connector-binance": "workspace:*",
+    "@gsolut/logger": "workspace:*",
+    "@gsolut/radar-spot": "workspace:*",
+    "@gsolut/risk-filter": "workspace:*",
+    "@gsolut/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@gsolut/tsconfig": "workspace:*",
+    "@types/node": "^22.10.1",
+    "tsx": "^4.19.2",
+    "typescript": "^7.0.2"
+  }
+}
