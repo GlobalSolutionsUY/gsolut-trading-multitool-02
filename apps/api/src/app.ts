@@ -3,9 +3,11 @@ import type { Candle } from '@gsolut/types';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
+import { type RadarRouteOptions, createRadarRoutes } from './routes/radar.js';
+
 const logger = createLogger('API');
 
-export function createApp() {
+export function createApp(options: RadarRouteOptions = {}) {
   const app = new Hono();
 
   app.use(
@@ -76,7 +78,8 @@ export function createApp() {
         interval: '15m' as const,
         candles,
       });
-    });
+    })
+    .route('/api/radar/spot', createRadarRoutes(options));
 
   return routes;
 }
