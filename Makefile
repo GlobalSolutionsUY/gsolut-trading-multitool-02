@@ -3,6 +3,8 @@
 
 PNPM = pnpm
 
+.DEFAULT_GOAL := help
+
 .PHONY: all help install check check-ci lint format typecheck test build clean dev-api dev-radar dev-web
 
 all: install check build
