@@ -1,5 +1,19 @@
-import type { Candle } from '@gsolut/types';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+interface StablecoinItem {
+  symbol: string;
+  name: string;
+  price: number;
+  pegTarget: number;
+  deviationPercent: number;
+  isPegged: boolean;
+  volume24h: number;
+  quoteVolume24h: number;
+  high24h: number;
+  low24h: number;
+  priceChangePercent: number;
+  updatedAt: string;
+}
 
 interface HealthData {
   status: string;
@@ -11,96 +25,170 @@ interface StatusData {
   service: string;
   version: string;
   activeProvider: string;
-  engine: string;
-  timestamp: string;
 }
+
+type StreamMode = 'SSE_STREAM' | 'POLLING';
 
 export function App() {
   const [health, setHealth] = useState<HealthData | null>(null);
   const [status, setStatus] = useState<StatusData | null>(null);
-  const [candles, setCandles] = useState<Candle[]>([]);
+  const [stables, setStables] = useState<StablecoinItem[]>([]);
   const [latency, setLatency] = useState<number | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [streamMode, setStreamMode] = useState<StreamMode>('SSE_STREAM');
+  const [streamActive, setStreamActive] = useState<boolean>(false);
+  const [lastTickAt, setLastTickAt] = useState<string>('');
+  const [updateCount, setUpdateCount] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTelemetry = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  // 1. Initial Health & Status Check
+  const checkHealth = useCallback(async () => {
     const start = performance.now();
     try {
-      const [healthRes, statusRes, candlesRes] = await Promise.all([
-        fetch('/health'),
-        fetch('/api/status'),
-        fetch('/api/test-candles'),
-      ]);
-
-      if (!healthRes.ok || !statusRes.ok || !candlesRes.ok) {
-        throw new Error('One or more backend telemetry requests failed');
-      }
-
-      const [healthData, statusData, candlesData] = await Promise.all([
-        healthRes.json() as Promise<HealthData>,
-        statusRes.json() as Promise<StatusData>,
-        candlesRes.json() as Promise<{ symbol: string; candles: Candle[] }>,
-      ]);
-
-      setHealth(healthData);
-      setStatus(statusData);
-      setCandles(candlesData.candles);
+      const [hRes, sRes] = await Promise.all([fetch('/health'), fetch('/api/status')]);
+      if (!hRes.ok || !sRes.ok) throw new Error('Backend health check failed');
+      const hData = (await hRes.json()) as HealthData;
+      const sData = (await sRes.json()) as StatusData;
+      setHealth(hData);
+      setStatus(sData);
       setLatency(Math.round(performance.now() - start));
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
+      setHealth(null);
     }
   }, []);
 
+  // 2. Fetch Stablecoins via REST
+  const fetchStablesRest = useCallback(async () => {
+    try {
+      const res = await fetch('/api/market/stables');
+      if (!res.ok) throw new Error(`HTTP ${res.status} fetching stables`);
+      const data = (await res.json()) as { items: StablecoinItem[]; timestamp: string };
+      setStables(data.items);
+      setLastTickAt(new Date().toLocaleTimeString());
+      setUpdateCount((c) => c + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  // 3. Setup SSE Live Stream
   useEffect(() => {
-    fetchTelemetry();
-    const interval = setInterval(fetchTelemetry, 10000);
-    return () => clearInterval(interval);
-  }, [fetchTelemetry]);
+    checkHealth();
+    const healthInterval = setInterval(checkHealth, 15000);
+
+    if (streamMode === 'SSE_STREAM') {
+      const es = new EventSource('/api/market/stables/stream');
+      eventSourceRef.current = es;
+
+      es.onopen = () => {
+        setStreamActive(true);
+        setError(null);
+      };
+
+      es.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data) as {
+            type: string;
+            items: StablecoinItem[];
+            timestamp: string;
+          };
+          if (Array.isArray(payload.items)) {
+            setStables(payload.items);
+            setLastTickAt(new Date().toLocaleTimeString());
+            setUpdateCount((c) => c + 1);
+          }
+        } catch (parseErr) {
+          console.error('SSE parse error:', parseErr);
+        }
+      };
+
+      es.onerror = () => {
+        setStreamActive(false);
+        // Fallback fetch via REST if stream drops
+        fetchStablesRest();
+      };
+
+      return () => {
+        es.close();
+        eventSourceRef.current = null;
+        clearInterval(healthInterval);
+      };
+    }
+
+    // Polling mode
+    fetchStablesRest();
+    const pollInterval = setInterval(fetchStablesRest, 4000);
+    setStreamActive(false);
+
+    return () => {
+      clearInterval(pollInterval);
+      clearInterval(healthInterval);
+    };
+  }, [streamMode, checkHealth, fetchStablesRest]);
+
+  const formatVolume = (vol: number) => {
+    if (vol >= 1_000_000_000) return `$${(vol / 1_000_000_000).toFixed(2)}B`;
+    if (vol >= 1_000_000) return `$${(vol / 1_000_000).toFixed(1)}M`;
+    return `$${Math.round(vol).toLocaleString()}`;
+  };
+
+  const getDeviationStyle = (dev: number) => {
+    const abs = Math.abs(dev);
+    if (abs <= 0.05)
+      return { color: 'var(--color-bullish)', label: 'PEGGED', bg: 'rgba(63, 185, 80, 0.15)' };
+    if (abs <= 0.15)
+      return { color: '#d29922', label: 'SLIGHT DEVIATION', bg: 'rgba(210, 153, 34, 0.15)' };
+    return { color: 'var(--color-bearish)', label: 'DEPEGGED', bg: 'rgba(248, 81, 73, 0.15)' };
+  };
 
   return (
     <main
       style={{
-        maxWidth: '1000px',
+        maxWidth: '1100px',
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
         gap: '1.5rem',
       }}
     >
-      {/* Header with Health Badge */}
+      {/* Header & Connection Telemetry */}
       <header
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
           borderBottom: '1px solid var(--border-color)',
-          paddingBottom: '1rem',
+          paddingBottom: '1.25rem',
         }}
       >
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Trading Multitool Copilot</h1>
+          <h1 style={{ fontSize: '1.6rem', fontWeight: 700, letterSpacing: '-0.02em' }}>
+            Trading Multitool Copilot
+          </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            Market Intelligence Radar & Telemetry Console
+            Stablecoin Liquidity & Telemetry Stream (Binance Public Data)
           </p>
         </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span
+          {/* Connection Status Badge */}
+          <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.4rem',
-              padding: '0.25rem 0.75rem',
+              gap: '0.5rem',
+              padding: '0.35rem 0.85rem',
               borderRadius: '9999px',
               fontSize: '0.8rem',
               fontWeight: 600,
-              backgroundColor:
-                health?.status === 'ok' ? 'rgba(63, 185, 80, 0.15)' : 'rgba(248, 81, 73, 0.15)',
-              color: health?.status === 'ok' ? 'var(--color-bullish)' : 'var(--color-bearish)',
-              border: `1px solid ${health?.status === 'ok' ? 'rgba(63, 185, 80, 0.3)' : 'rgba(248, 81, 73, 0.3)'}`,
+              backgroundColor: health ? 'rgba(63, 185, 80, 0.15)' : 'rgba(248, 81, 73, 0.15)',
+              color: health ? 'var(--color-bullish)' : 'var(--color-bearish)',
+              border: `1px solid ${health ? 'var(--color-bullish)' : 'var(--color-bearish)'}`,
             }}
           >
             <span
@@ -108,300 +196,248 @@ export function App() {
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor:
-                  health?.status === 'ok' ? 'var(--color-bullish)' : 'var(--color-bearish)',
+                backgroundColor: health ? 'var(--color-bullish)' : 'var(--color-bearish)',
+                boxShadow: health ? '0 0 8px var(--color-bullish)' : 'none',
               }}
             />
-            {health?.status === 'ok' ? `API ONLINE (${latency}ms)` : 'OFFLINE'}
-          </span>
-          <button
-            type="button"
-            onClick={fetchTelemetry}
-            disabled={loading}
-            style={{
-              padding: '0.35rem 0.8rem',
-              borderRadius: '6px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-card)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-            }}
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
+            {health ? `CONNECTED (${latency ?? 0}ms)` : 'DISCONNECTED'}
+          </div>
+
+          {/* Provider Badge */}
+          {status && (
+            <span
+              style={{
+                fontSize: '0.8rem',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '6px',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              Provider:{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>
+                {status.activeProvider.toUpperCase()}
+              </strong>
+            </span>
+          )}
         </div>
       </header>
 
+      {/* Stream Controls & Status Bar */}
+      <section
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          backgroundColor: 'var(--bg-card)',
+          padding: '0.85rem 1.25rem',
+          borderRadius: '8px',
+          border: '1px solid var(--border-color)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span
+              style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                backgroundColor: streamActive ? 'var(--color-bullish)' : '#d29922',
+                animation: streamActive ? 'pulse 1.5s infinite' : 'none',
+              }}
+            />
+            <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+              {streamActive ? 'Live SSE Stream Active' : 'Polling Fallback Active'}
+            </span>
+          </div>
+
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            Updates: <strong style={{ color: 'var(--text-primary)' }}>{updateCount}</strong> | Last
+            Tick:{' '}
+            <strong style={{ color: 'var(--text-primary)' }}>
+              {lastTickAt || 'Connecting...'}
+            </strong>
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={() => setStreamMode((m) => (m === 'SSE_STREAM' ? 'POLLING' : 'SSE_STREAM'))}
+            style={{
+              padding: '0.4rem 0.85rem',
+              borderRadius: '6px',
+              backgroundColor: 'transparent',
+              color: 'var(--color-accent)',
+              border: '1px solid var(--color-accent)',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+            }}
+          >
+            Mode: {streamMode === 'SSE_STREAM' ? 'SSE Stream (3s)' : 'Polling (4s)'}
+          </button>
+
+          <button
+            type="button"
+            onClick={fetchStablesRest}
+            style={{
+              padding: '0.4rem 0.85rem',
+              borderRadius: '6px',
+              backgroundColor: 'var(--border-color)',
+              color: 'var(--text-primary)',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+            }}
+          >
+            ↻ Refresh
+          </button>
+        </div>
+      </section>
+
+      {/* Error Alert */}
       {error && (
         <div
           style={{
-            padding: '1rem',
-            borderRadius: '6px',
             backgroundColor: 'rgba(248, 81, 73, 0.1)',
             border: '1px solid var(--color-bearish)',
+            borderRadius: '6px',
+            padding: '0.75rem 1rem',
             color: 'var(--color-bearish)',
-            fontSize: '0.9rem',
+            fontSize: '0.875rem',
           }}
         >
-          <strong>Connection Alert:</strong> {error}
+          <strong>Connection Notice:</strong> {error}
         </div>
       )}
 
-      {/* Telemetry Status Cards */}
-      <section
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1rem',
-        }}
-      >
+      {/* Stablecoins Grid */}
+      <section>
         <div
           style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '6px',
-            padding: '1rem',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: '1rem',
           }}
         >
-          <span
-            style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}
-          >
-            Service
-          </span>
-          <p style={{ fontSize: '1.1rem', fontWeight: 600, marginTop: '0.25rem' }}>
-            {status?.service || '—'}
-          </p>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            v{status?.version || '—'}
-          </span>
-        </div>
-
-        <div
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '6px',
-            padding: '1rem',
-          }}
-        >
-          <span
-            style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}
-          >
-            Active Data Provider
-          </span>
-          <p
-            style={{
-              fontSize: '1.1rem',
-              fontWeight: 600,
-              marginTop: '0.25rem',
-              color: 'var(--color-accent)',
-            }}
-          >
-            {status?.activeProvider?.toUpperCase() || '—'} (Public REST)
-          </p>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Free read feeds (no API keys)
-          </span>
-        </div>
-
-        <div
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '6px',
-            padding: '1rem',
-          }}
-        >
-          <span
-            style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}
-          >
-            Radar Engine
-          </span>
-          <p style={{ fontSize: '1.1rem', fontWeight: 600, marginTop: '0.25rem' }}>
-            {status?.engine || '—'}
-          </p>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Deterministic Rebounds
-          </span>
-        </div>
-
-        <div
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '6px',
-            padding: '1rem',
-          }}
-        >
-          <span
-            style={{ color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase' }}
-          >
-            API Uptime
-          </span>
-          <p style={{ fontSize: '1.1rem', fontWeight: 600, marginTop: '0.25rem' }}>
-            {health?.uptime !== undefined ? `${Math.round(health.uptime)}s` : '—'}
-          </p>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Healthy</span>
-        </div>
-      </section>
-
-      {/* Initial Charting & Plotting Test Canvas */}
-      <section
-        style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-color)',
-          borderRadius: '6px',
-          padding: '1.25rem',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '1rem',
-          }}
-        >
-          <div>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 600 }}>
-              Live Charting Test: BTCUSDT (15m Candles)
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-              Verifies SVG rendering, price scaling, and rejection wick detection
-            </p>
-          </div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            {candles.length} bars loaded
-          </span>
-        </div>
-
-        {candles.length > 0 ? (
-          <CandleChart candles={candles} />
-        ) : (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No candle data received from backend.
-          </div>
-        )}
-      </section>
-    </main>
-  );
-}
-
-function CandleChart({ candles }: { candles: Candle[] }) {
-  const width = 940;
-  const height = 280;
-  const paddingBottom = 40;
-  const chartHeight = height - paddingBottom;
-
-  const minPrice = Math.min(...candles.map((c) => c.low));
-  const maxPrice = Math.max(...candles.map((c) => c.high));
-  const priceRange = maxPrice - minPrice || 1;
-
-  const maxVolume = Math.max(...candles.map((c) => c.volume)) || 1;
-  const barWidth = Math.max(8, (width - 60) / candles.length - 4);
-
-  function getY(price: number): number {
-    return chartHeight - ((price - minPrice) / priceRange) * (chartHeight - 30) - 15;
-  }
-
-  return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      style={{ width: '100%', height: 'auto', overflow: 'visible' }}
-    >
-      <title>BTCUSDT 15m Candlestick Chart</title>
-      {/* Price Grid Lines */}
-      {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-        const price = minPrice + ratio * priceRange;
-        const y = getY(price);
-        return (
-          <g key={ratio}>
-            <line
-              x1="0"
-              y1={y}
-              x2={width - 70}
-              y2={y}
-              stroke="rgba(255, 255, 255, 0.08)"
-              strokeDasharray="3 3"
-            />
-            <text
-              x={width - 65}
-              y={y + 4}
-              fill="var(--text-muted)"
-              fontSize="10"
-              textAnchor="start"
-            >
-              ${price.toFixed(0)}
-            </text>
-          </g>
-        );
-      })}
-
-      {/* Candlesticks & Volume Bars */}
-      {candles.map((c, i) => {
-        const x = 30 + i * ((width - 80) / candles.length);
-        const openY = getY(c.open);
-        const closeY = getY(c.close);
-        const highY = getY(c.high);
-        const lowY = getY(c.low);
-
-        const isBullish = c.close >= c.open;
-        const color = isBullish ? 'var(--color-bullish)' : 'var(--color-bearish)';
-        const bodyTop = Math.min(openY, closeY);
-        const bodyHeight = Math.max(2, Math.abs(openY - closeY));
-
-        // Volume height
-        const volHeight = (c.volume / maxVolume) * 35;
-        const volY = height - volHeight;
-
-        // Is anomaly candle (candle 24 from mock generator)
-        const isAnomaly = i === 24;
-
-        return (
-          <g key={c.openTime}>
-            {/* Volume bar */}
-            <rect
-              x={x - barWidth / 2}
-              y={volY}
-              width={barWidth}
-              height={volHeight}
-              fill={color}
-              opacity={isAnomaly ? 0.8 : 0.25}
-            />
-
-            {/* Wick */}
-            <line x1={x} y1={highY} x2={x} y2={lowY} stroke={color} strokeWidth="1.5" />
-
-            {/* Body */}
-            <rect
-              x={x - barWidth / 2}
-              y={bodyTop}
-              width={barWidth}
-              height={bodyHeight}
-              fill={color}
-              stroke={color}
-            />
-
-            {/* Anomaly Highlight Indicator */}
-            {isAnomaly && (
-              <g>
-                <circle cx={x} cy={lowY + 12} r="4" fill="var(--color-accent)" />
-                <text
-                  x={x}
-                  y={lowY + 26}
-                  fill="var(--color-accent)"
-                  fontSize="9"
-                  fontWeight="bold"
-                  textAnchor="middle"
+          {stables.map((coin) => {
+            const dev = getDeviationStyle(coin.deviationPercent);
+            return (
+              <div
+                key={coin.symbol}
+                style={{
+                  backgroundColor: 'var(--bg-card)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  padding: '1.25rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                }}
+              >
+                {/* Header */}
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
-                  REJECTION
-                </text>
-              </g>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+                  <div>
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{coin.name}</h2>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {coin.symbol}
+                    </span>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '4px',
+                      backgroundColor: dev.bg,
+                      color: dev.color,
+                      border: `1px solid ${dev.color}`,
+                    }}
+                  >
+                    {dev.label}
+                  </span>
+                </div>
+
+                {/* Main Price & Deviation */}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
+                  <span
+                    style={{
+                      fontSize: '1.8rem',
+                      fontWeight: 700,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    ${coin.price.toFixed(4)}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      color: dev.color,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {coin.deviationPercent >= 0
+                      ? `+${coin.deviationPercent.toFixed(2)}%`
+                      : `${coin.deviationPercent.toFixed(2)}%`}
+                  </span>
+                </div>
+
+                {/* Secondary Metrics */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '0.5rem',
+                    borderTop: '1px solid var(--border-color)',
+                    paddingTop: '0.75rem',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block' }}>
+                      24h Quote Volume
+                    </span>
+                    <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {formatVolume(coin.quoteVolume24h)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block' }}>24h Range</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      ${coin.low24h.toFixed(4)} - ${coin.high24h.toFixed(4)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Footer Info */}
+      <footer
+        style={{
+          borderTop: '1px solid var(--border-color)',
+          paddingTop: '1rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          color: 'var(--text-muted)',
+          fontSize: '0.8rem',
+        }}
+      >
+        <span>Trading Multitool 02 · Market Intelligence Baseline</span>
+        <span>Uptime: {health ? `${Math.round(health.uptime)}s` : 'N/A'}</span>
+      </footer>
+    </main>
   );
 }
