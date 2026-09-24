@@ -15,6 +15,12 @@ For details beyond this inline reference, fetch the latest documentation from ht
 curl -H "Accept: text/markdown" https://hono.dev/docs/helpers/cookie
 ```
 
+Local offline references are bundled in the `references/` directory:
+- `references/llms.txt`: Documentation index
+- `references/llms-small.txt`: Concise reference notes
+- `references/llms-full.txt`: Full comprehensive Markdown documentation
+
+
 ## Hono CLI
 
 Use [Hono CLI](https://github.com/honojs/cli) to inspect and test the app. Install it in the project, then let the CLI explain itself:
