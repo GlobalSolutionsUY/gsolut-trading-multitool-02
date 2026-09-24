@@ -18,6 +18,29 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/logger:
+    devDependencies:
+      '@gsolut/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.20.4
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/tsconfig: {}
+
+  packages/types:
+    devDependencies:
+      '@gsolut/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
 packages:
 
   '@biomejs/biome@1.9.4':
