@@ -5,6 +5,8 @@
   "description": "Modular trading intelligence radar and copilot for human-in-the-loop decisions",
   "scripts": {
     "build": "pnpm -r run build",
+    "dev:api": "pnpm --filter @gsolut/api dev",
+    "dev:web": "pnpm --filter @gsolut/web dev",
     "check": "biome check --write .",
     "check:ci": "biome check .",
     "lint": "biome lint .",
@@ -17,7 +19,7 @@
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@types/node": "^22.10.1",
-    "typescript": "^5.7.2"
+    "typescript": "^7.0.2"
   },
   "engines": {
     "node": ">=20.0.0",

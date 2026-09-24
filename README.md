@@ -1,12 +1,15 @@
 # Trading Multitool 02 (Radar & Copilot)
 
 [![Philosophy](https://img.shields.io/badge/Philosophy-Ponytail%20%7C%20Anti--Slop-success.svg)](.agents/)
-[![Language](https://img.shields.io/badge/Language-TypeScript%205.7-blue.svg)](packages/tsconfig)
+[![Language](https://img.shields.io/badge/Language-TypeScript%207.0-blue.svg)](packages/tsconfig)
 [![Tooling](https://img.shields.io/badge/Linter%20%26%20Formatter-Biome%201.9-yellow.svg)](biome.json)
 [![Package Manager](https://img.shields.io/badge/Package%20Manager-pnpm%2012-orange.svg)](pnpm-workspace.yaml)
+[![Manifest](https://img.shields.io/badge/Spec-Project%20Manifest-purple.svg)](docs/project-manifest.md)
 
 > **Modular market intelligence radar and tactical copilot for human-in-the-loop decision makers.**
 > The system crunches high-throughput market data to surface real anomalies; humans (**Ger & Freya**) retain 100% execution authority.
+> 
+> 📋 **Consult [`docs/project-manifest.md`](docs/project-manifest.md) for the single-source-of-truth project checklist.**
 
 ---
 

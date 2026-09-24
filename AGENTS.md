@@ -1,5 +1,7 @@
 # AI Agent Directives: gsolut-trading-multitool-02
 
+> 📋 **Project Manifest & Requirements Checklist**: Consult [`docs/project-manifest.md`](docs/project-manifest.md) for fixed versions (TypeScript 7, Node 24, pnpm 12), architectural boundaries, and anti-scope rules.
+
 This repository operates under strict engineering standards, leveraging **Ponytail** (radical simplicity & YAGNI), **Anti-Slop** (craft & intent over generic AI outputs), the official **Hono** web framework guidelines, and a disciplined **GitHub Workflow**.
 
 ---
