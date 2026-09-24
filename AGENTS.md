@@ -1,6 +1,6 @@
 # AI Agent Directives: gsolut-trading-multitool-02
 
-This repository operates under strict engineering standards, leveraging **Ponytail** (radical simplicity & YAGNI), **Anti-Slop** (craft & intent over generic AI outputs), and a disciplined **GitHub Workflow**.
+This repository operates under strict engineering standards, leveraging **Ponytail** (radical simplicity & YAGNI), **Anti-Slop** (craft & intent over generic AI outputs), the official **Hono** web framework guidelines, and a disciplined **GitHub Workflow**.
 
 ---
 
@@ -27,6 +27,18 @@ For architecture, code design, refactoring, dependencies, and implementation:
   4. Only then write the minimum code that works.
 - Zero boilerplate nobody asked for. Deletion over addition. Boring over clever.
 <!-- ponytail:end -->
+
+---
+
+<!-- hono:start -->
+## Hono (Official Web Framework Skill)
+For backend API services, HTTP routing, middleware, validation, RPC client, and endpoint testing:
+- **Official Skill**: `.agents/skills/hono/SKILL.md` (from [honojs/skills](https://github.com/honojs/skills))
+- **Core Rules**:
+  - Use `@hono/node-server` (`serve(app)`) for Node.js execution.
+  - Route chaining is mandatory for type-safe RPC: `const routes = app.get(...).post(...)` and `export type AppType = typeof routes`.
+  - Use `app.request()` for in-memory testing without binding to TCP ports.
+<!-- hono:end -->
 
 ---
 
