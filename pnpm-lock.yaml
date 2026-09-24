@@ -20,9 +20,18 @@ importers:
 
   apps/api:
     dependencies:
+      '@gsolut/connector-binance':
+        specifier: workspace:*
+        version: link:../../packages/connector-binance
       '@gsolut/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@gsolut/radar-spot':
+        specifier: workspace:*
+        version: link:../../packages/radar-spot
+      '@gsolut/risk-filter':
+        specifier: workspace:*
+        version: link:../../packages/risk-filter
       '@gsolut/types':
         specifier: workspace:*
         version: link:../../packages/types

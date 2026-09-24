@@ -12,7 +12,10 @@
     "test": "tsx --test test/**/*.test.ts"
   },
   "dependencies": {
+    "@gsolut/connector-binance": "workspace:*",
     "@gsolut/logger": "workspace:*",
+    "@gsolut/radar-spot": "workspace:*",
+    "@gsolut/risk-filter": "workspace:*",
     "@gsolut/types": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "hono": "^4.6.14"
