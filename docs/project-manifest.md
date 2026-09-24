@@ -92,3 +92,10 @@ gsolut-trading-multitool-02/
   - Subissue/Item: <item reference>
   - Step: <Step X/Y: action description>
   ```
+- **Explicit Concern Boundaries**:
+  1. `project config / definition`: Root configs, workspace definition, biome, tsconfig, manifest.
+  2. `infra / docker / ci-cd`: Dockerfiles, compose, GitHub Actions, deployment automation.
+  3. `frontend framework / project`: apps/web setup, vite.config.ts, HTML shell, entrypoint.
+  4. `frontend component / store / ui element`: UI components, charts, state stores, styling.
+  5. `backend framework / project / base`: apps/api setup, server entrypoint, global middleware, health routes.
+  6. `backend module features`: Standalone domain packages (connector, radar, risk, telegram) grouped with their corresponding server routes/controllers.

@@ -58,6 +58,21 @@ Commits must be **atomic** and strictly **grouped by concern, subissue, item, an
 - `docs`: Documentation updates
 - `chore`: Maintenance, repository setup, configuration
 
+### Explicit Concern Boundaries for Grouped Commits:
+Always isolate commits into distinct concern boundaries, even when contributing to the same overarching task:
+1. **`project config / definition`**:
+   - Workspace configs (`pnpm-workspace.yaml`, `biome.json`, `tsconfig.base.json`, root `package.json`, manifests, makefiles).
+2. **`infra / docker / ci-cd`**:
+   - Dockerfiles, compose specs, CI/CD pipelines, GitHub Actions workflows, deployment automation.
+3. **`frontend framework / project`**:
+   - `apps/web` project scaffolding, bundler configuration (`vite.config.ts`), HTML wrapper, entrypoint, routing foundation.
+4. **`frontend component / store / ui element`**:
+   - Specific UI components, state stores, charts, canvases, widgets, and styling.
+5. **`backend framework / project / base`**:
+   - `apps/api` framework setup, server entrypoint (`@hono/node-server`), global middleware (CORS, logger, errors), base health routes.
+6. **`backend module features`**:
+   - Standalone domain modules (e.g., `connector-binance`, `radar-spot`, `risk-filter`, `alerter-telegram`), grouped together with their corresponding server routes/controllers (e.g., `/api/spot-radar`).
+
 ---
 
 ## 4. Engineering Standards & Directives
