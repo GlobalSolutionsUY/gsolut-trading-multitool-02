@@ -3,11 +3,14 @@ import type { Candle } from '@gsolut/types';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
+import { type MarketRouteOptions, createMarketRoutes } from './routes/market.js';
 import { type RadarRouteOptions, createRadarRoutes } from './routes/radar.js';
 
 const logger = createLogger('API');
 
-export function createApp(options: RadarRouteOptions = {}) {
+export type AppOptions = RadarRouteOptions & MarketRouteOptions;
+
+export function createApp(options: AppOptions = {}) {
   const app = new Hono();
 
   app.use(
@@ -79,7 +82,8 @@ export function createApp(options: RadarRouteOptions = {}) {
         candles,
       });
     })
-    .route('/api/radar/spot', createRadarRoutes(options));
+    .route('/api/radar/spot', createRadarRoutes(options))
+    .route('/api/market', createMarketRoutes(options));
 
   return routes;
 }
