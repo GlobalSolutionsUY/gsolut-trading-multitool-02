@@ -11,7 +11,7 @@ This document is the **single source of truth** for core technologies, versions,
 | **Language** | **TypeScript** | **`^7.0.2`** | Strict mode, NodeNext / Bundler modules, uniform across monorepo. |
 | **Runtime** | **Node.js** | **`>= 20.0.0`** (Active: `v24.12.0`) | Standard library first (`fetch`, `node:crypto`, `node:test`). |
 | **Package Manager** | **pnpm** | **`>= 9.0.0`** (Active: `v12.3.4`) | Workspaces (`pnpm-workspace.yaml`). |
-| **Linter / Formatter** | **Biome** | **`1.9.4`** | Single Rust binary replacing ESLint + Prettier. CRLF line endings. |
+| **Linter / Formatter** | **Biome** | **`1.9.4`** | Single Rust binary replacing ESLint + Prettier. Cross-platform LF line endings (`.gitattributes`). |
 | **Backend API** | **Hono** | **`^4.6.14`** | `@hono/node-server`, route chaining for `AppType` inference, `app.request()` testing. |
 | **Frontend Web** | **React + Vite** | **`React 18.3` + `Vite 6`** | Clean SPA dashboard, SVG/Canvas charting, typed RPC consumption. |
 | **Automation** | **GNU Make** | Cross-platform | Universal commands (`make install`, `make check`, `make typecheck`, `make test`). |
